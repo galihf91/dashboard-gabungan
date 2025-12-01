@@ -407,59 +407,62 @@ m = folium.Map(location=center_loc, zoom_start=zoom_start, control_scale=True, t
 from folium.map import CustomPane
 m.add_child(CustomPane("batas-top", z_index=650))  # markerPane = 600, jadi 650 di atas marker
 
-# Muat batas administrasi dari file GeoJSON
-import geopandas as gpd
+import json
+from pathlib import Path
 
-# Nama file GeoJSON kamu
-batas_path = "batas_kecamatan_tangerang.geojson"
+# === Muat batas administrasi dari file GeoJSON (tanpa geopandas) ===
+def load_batas_geojson():
+    path = Path("batas_kecamatan_tangerang.geojson")
+    if not path.exists():
+        st.warning(f"File batas kecamatan tidak ditemukan: {path}")
+        return None
 
-batas = gpd.read_file(batas_path)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data
+    except Exception as e:
+        st.error(f"Gagal membaca GeoJSON batas kecamatan: {e}")
+        return None
 
-# Pastikan CRS WGS84 (lat-lon)
-if not batas.crs or batas.crs.to_epsg() != 4326:
-    batas = batas.to_crs(epsg=4326)
+batas_geojson = load_batas_geojson()
 
-# (opsional) sederhanakan geometri biar ringan
-try:
-    batas["geometry"] = batas.geometry.simplify(0.0005, preserve_topology=True)
-except Exception:
-    pass
-
-
-# (opsional) sederhanakan geometri biar ringan
-try:
-    batas["geometry"] = batas.geometry.simplify(0.0005, preserve_topology=True)
-except Exception:
-    pass
-
-# === Gambar Batas Kabupaten / Kecamatan tanpa bayangan ===
-kolom_nama = next(
-    (c for c in ["NAMOBJ", "WADMKC", "KECAMATAN", "NAMA_KEC", "NAMA_KECAMATAN", "Kecamatan"]
-     if c in batas.columns),
-    None
-)
-
+# === Gambar Batas Kecamatan di atas marker ===
+kolom_nama = None
 tooltip_args = {}
-if kolom_nama:
-    tooltip_args["tooltip"] = folium.GeoJsonTooltip(
-        fields=[kolom_nama],
-        aliases=["Kecamatan:"]
-    )
 
-# Garis merah tebal tanpa bayangan / isi warna
-folium.GeoJson(
-    batas,
-    name="Batas Kecamatan",
-    pane="batas-top",
-    style_function=lambda x: {
-        "color": "#8000FF",   # ungu khas Tangerang
-        "weight": 2,          # atur ketebalan
-        "opacity": 1.0,       # full opacity
-        "fill": False,        # tidak ada isi warna
-        "fillOpacity": 0,     # transparan
-    },
-    **tooltip_args
-).add_to(m)
+if batas_geojson is not None:
+    # Coba deteksi nama kolom dari properties feature pertama
+    try:
+        props = batas_geojson["features"][0]["properties"]
+        for c in ["NAMOBJ", "WADMKC", "KECAMATAN", "NAMA_KEC", "NAMA_KECAMATAN", "Kecamatan"]:
+            if c in props:
+                kolom_nama = c
+                break
+    except Exception:
+        kolom_nama = None
+
+    if kolom_nama:
+        tooltip_args["tooltip"] = folium.GeoJsonTooltip(
+            fields=[kolom_nama],
+            aliases=["Kecamatan:"]
+        )
+
+    folium.GeoJson(
+        batas_geojson,
+        name="Batas Kecamatan",
+        pane="batas-top",
+        style_function=lambda x: {
+            "color": "#8000FF",   # ungu khas Tangerang
+            "weight": 2,
+            "opacity": 1.0,
+            "fill": False,
+            "fillOpacity": 0,
+        },
+        **tooltip_args
+    ).add_to(m)
+else:
+    st.warning("Layer batas kecamatan tidak ditampilkan karena GeoJSON tidak terbaca.")
 
 if has_coords and coords is not None and not coords.empty:
     cluster = MarkerCluster(name="Pasar", show=True).add_to(m)
