@@ -6,8 +6,14 @@ import matplotlib.pyplot as plt
 plt.style.use("seaborn-v0_8")  # gaya bawaan yang lebih modern
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense
+# Di bagian import paling atas
+try:
+    from tensorflow.keras.models import Sequential, load_model
+    from tensorflow.keras.layers import LSTM, Dense
+    TF_AVAILABLE = True
+except Exception:
+    TF_AVAILABLE = False
+
 import math
 import plotly.express as px
 import plotly.graph_objects as go
@@ -560,6 +566,14 @@ with tab1:
 with tab2:
     st.markdown("### 🤖 Training Model & Prediksi Harga + Saran Kebijakan")
 
+    if not TF_AVAILABLE:
+        st.error(
+            "Fitur training & prediksi LSTM belum aktif di versi online.\n\n"
+            "Silakan gunakan aplikasi versi lokal (di laptop) untuk melatih dan menjalankan model LSTM.\n"
+            "Versi online ini baru mendukung tampilan harga & peta terlebih dahulu."
+        )
+        st.stop()
+    
     # Filter data berdasarkan PASAR yang dipilih di Tab 1
     df_pasar = df[df["pasar"] == pasar].copy()
 
